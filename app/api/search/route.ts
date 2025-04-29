@@ -214,6 +214,58 @@ function processApiResponse(content: string): SearchResponse {
     
     console.log('AI 응답 처리 시작:', content.substring(0, 200) + '...');
     
+    // JSON 형식 응답인지 확인
+    const jsonPattern = /^\s*\{[\s\S]*\}\s*$/;
+    if (jsonPattern.test(content)) {
+      console.log('JSON 형식 응답 감지됨, 파싱 시도...');
+      try {
+        const jsonData = JSON.parse(content);
+        
+        // JSON 구조 확인
+        if (jsonData["주요 근거 요약"] && Array.isArray(jsonData["주요 근거 요약"])) {
+          // 요약 추출
+          summary = jsonData["주요 근거 요약"].join('\n\n');
+          console.log('JSON 요약 추출 성공');
+        }
+        
+        // 근거 자료 목록 추출
+        if (jsonData["근거 자료 목록"] && Array.isArray(jsonData["근거 자료 목록"])) {
+          console.log(`JSON에서 ${jsonData["근거 자료 목록"].length}개의 근거 자료 발견`);
+          
+          jsonData["근거 자료 목록"].forEach((item: any) => {
+            const type = mapJsonTypeToAppType(item["유형"] || '');
+            
+            citations.push({
+              title: item["제목"] || `근거 자료`,
+              url: item["URL"] || '',
+              snippet: item["설명"] || '',
+              type,
+              date: item["날짜"]
+            });
+          });
+          
+          // 관련 질문 추출
+          if (jsonData["관련 질문"] && Array.isArray(jsonData["관련 질문"])) {
+            jsonData["관련 질문"].forEach((question: string) => {
+              if (question && question.length > 5) {
+                relatedQuestions.push(question);
+              }
+            });
+          }
+          
+          // JSON 처리 완료 시 일반 텍스트 처리 건너뛰기
+          return {
+            summary,
+            citations,
+            relatedQuestions: relatedQuestions.length > 0 ? relatedQuestions : undefined
+          };
+        }
+      } catch (jsonError) {
+        console.error('JSON 파싱 실패, 일반 텍스트로 처리합니다:', jsonError);
+        // JSON 파싱 실패 시 일반 텍스트 처리로 계속 진행
+      }
+    }
+    
     // 완전한 URL 정규식 (http(s)로 시작하는 URL)
     const fullUrlRegex = /(https?:\/\/[^\s"'()<>]+)/g;
     
@@ -426,5 +478,22 @@ function processApiResponse(content: string): SearchResponse {
       summary: '근거 자료 검색 결과를 처리하는 과정에서 오류가 발생했습니다.',
       citations: []
     }
+  }
+}
+
+// JSON 응답에서 유형을 앱 유형으로 매핑하는 함수
+function mapJsonTypeToAppType(jsonType: string): 'news' | 'academic' | 'statistics' | 'video' | 'other' {
+  const lowerType = jsonType.toLowerCase();
+  
+  if (lowerType.includes('news') || lowerType.includes('뉴스')) {
+    return 'news';
+  } else if (lowerType.includes('academic') || lowerType.includes('학술')) {
+    return 'academic';
+  } else if (lowerType.includes('statistics') || lowerType.includes('통계')) {
+    return 'statistics';
+  } else if (lowerType.includes('video') || lowerType.includes('영상')) {
+    return 'video';
+  } else {
+    return 'other';
   }
 } 
