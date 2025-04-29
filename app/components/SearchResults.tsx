@@ -55,23 +55,60 @@ export default function SearchResults({ results }: SearchResultsProps) {
   const getCompleteUrl = (url: string): string => {
     if (!url) return '';
     
+    console.log('원본 URL:', url);
+    
     // URL이 이미 http:// 또는 https://로 시작하는 경우
     if (url.startsWith('http://') || url.startsWith('https://')) {
+      console.log('완전한 URL 반환:', url);
       return url;
     }
     
-    // 도메인만 있는 경우 (예: example.com/...)
+    // 절대 URL 경로인지 확인 (/로 시작하는 경우)
+    if (url.startsWith('/')) {
+      // 첫 번째 슬래시 다음에 두 번째 슬래시가 있는지 확인 (//example.com 형태)
+      if (url.startsWith('//')) {
+        const completeUrl = `https:${url}`;
+        console.log('//로 시작하는 URL 보정:', completeUrl);
+        return completeUrl;
+      }
+    }
+    
+    // 특정 도메인 케이스 처리
+    if (url.includes('dbpia.co.kr') || url.includes('kosis.kr') || url.includes('youtube.com')) {
+      const completeUrl = `https://${url}`;
+      console.log('특정 도메인 URL 보정:', completeUrl);
+      return completeUrl;
+    }
+    
+    // URL에 쿼리 파라미터나 경로가 포함되는지 확인
+    if (url.includes('?') || url.includes('/')) {
+      // 도메인 추출 시도
+      const domainPart = url.split('/')[0];
+      if (domainPart.includes('.')) {
+        const completeUrl = `https://${url}`;
+        console.log('경로 포함 URL 보정:', completeUrl);
+        return completeUrl;
+      }
+    }
+    
+    // 도메인만 있는 경우 (예: example.com)
     if (url.includes('.') && !url.startsWith('www.')) {
-      return `https://${url}`;
+      const completeUrl = `https://${url}`;
+      console.log('도메인만 있는 URL 보정:', completeUrl);
+      return completeUrl;
     }
     
     // www.로 시작하는 경우
     if (url.startsWith('www.')) {
-      return `https://${url}`;
+      const completeUrl = `https://${url}`;
+      console.log('www로 시작하는 URL 보정:', completeUrl);
+      return completeUrl;
     }
     
     // 상대 경로인 경우 또는 기타 케이스
-    return `https://${url}`;
+    const completeUrl = `https://${url}`;
+    console.log('기타 URL 보정:', completeUrl);
+    return completeUrl;
   }
   
   // URL 복사 함수
@@ -125,18 +162,26 @@ export default function SearchResults({ results }: SearchResultsProps) {
     try {
       // 먼저 URL 보정
       const completeUrl = getCompleteUrl(url);
+      console.log('표시용 변환 전 URL:', completeUrl);
       
       // 유효한 URL 객체로 변환
       const urlObj = new URL(completeUrl);
       let displayUrl = urlObj.hostname.replace('www.', '');
+      
+      // 전체 경로 표시 (생략하지 않음)
       if (urlObj.pathname !== '/') {
-        const pathParts = urlObj.pathname.split('/').filter(Boolean);
-        if (pathParts.length > 0) {
-          displayUrl += `/${pathParts[0]}${pathParts.length > 1 ? '/...' : ''}`;
-        }
+        displayUrl += urlObj.pathname;
       }
+      
+      // 쿼리 파라미터가 있는 경우 추가
+      if (urlObj.search) {
+        displayUrl += urlObj.search;
+      }
+      
+      console.log('표시용 변환 후 URL:', displayUrl);
       return displayUrl;
     } catch (e) {
+      console.error('URL 포맷 에러:', e, url);
       return url;
     }
   };
@@ -269,7 +314,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
                   
                   {/* URL 및 액션 버튼 */}
                   <div className="flex items-center justify-between mt-3 border-t pt-3 border-gray-100">
-                    <div className="flex items-center space-x-1 text-sm">
+                    <div className="flex flex-col space-y-1 text-sm">
                       <a 
                         href={getCompleteUrl(citation.url)} 
                         target="_blank" 
@@ -279,6 +324,8 @@ export default function SearchResults({ results }: SearchResultsProps) {
                         {formatUrlForDisplay(citation.url)}
                         <FaExternalLinkAlt className="ml-1 text-xs" />
                       </a>
+                      <div className="text-xs text-gray-500">원본: {citation.url}</div>
+                      <div className="text-xs text-gray-500">변환: {getCompleteUrl(citation.url)}</div>
                     </div>
                     
                     <div className="flex items-center space-x-2">
