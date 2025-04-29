@@ -212,11 +212,41 @@ function processApiResponse(content: string): SearchResponse {
     const citations: Citation[] = []
     const relatedQuestions: string[] = []
     
-    // 텍스트에서 URL 추출 정규식
-    const urlRegex = /(https?:\/\/[^\s]+)/g
+    console.log('AI 응답 처리 시작:', content.substring(0, 200) + '...');
+    
+    // 완전한 URL 정규식 (http(s)로 시작하는 URL)
+    const fullUrlRegex = /(https?:\/\/[^\s"'()<>]+)/g;
+    
+    // 도메인 형태 정규식 (www.example.com 또는 example.com/path 같은 형태)
+    const domainUrlRegex = /\b((?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s"'()<>]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s"'()<>]{2,}|[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s"'()<>]{2,}(?:\/[^\s"'()<>]*)?)/g;
+    
+    // 특수 패턴 정규식 (kosis.kr/statHtml/... 같은 형태)
+    const specialPatternRegex = /((?:kosis\.kr|dbpia\.co\.kr|youtube\.com)\/[^\s"'()<>]+)/g;
     
     // 응답 텍스트에서 URL 찾기
-    const urls = content.match(urlRegex) || []
+    const fullUrls = content.match(fullUrlRegex) || [];
+    const domainUrls = content.match(domainUrlRegex) || [];
+    const specialUrls = content.match(specialPatternRegex) || [];
+    
+    // 모든 URL 결합 및 중복 제거
+    let allUrls = [...fullUrls];
+    
+    // 도메인 형식 URL 추가 (http로 시작하는 URL과 중복되지 않는 경우만)
+    domainUrls.forEach(url => {
+      // 이미 추출된 URL에 포함되어 있지 않은 경우만 추가
+      if (!allUrls.some(existingUrl => existingUrl.includes(url) || url.includes(existingUrl))) {
+        allUrls.push(url);
+      }
+    });
+    
+    // 특수 패턴 URL 추가 (기존 URL과 중복되지 않는 경우만)
+    specialUrls.forEach(url => {
+      if (!allUrls.some(existingUrl => existingUrl.includes(url) || url.includes(existingUrl))) {
+        allUrls.push(url);
+      }
+    });
+    
+    console.log('추출된 URL 목록:', allUrls);
     
     // 간단한 처리: 첫 번째 단락을 요약으로 간주
     const paragraphs = content.split('\n\n')
@@ -228,7 +258,9 @@ function processApiResponse(content: string): SearchResponse {
     const dateRegex = /\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b|\b\d{1,2}[-/.]\d{1,2}[-/.]\d{4}\b/g
     
     // URL을 찾아 인용 생성
-    urls.forEach((url, index) => {
+    allUrls.forEach((url, index) => {
+      console.log(`URL ${index + 1} 처리:`, url);
+      
       // 기본 유형은 'other'로 설정
       let type: 'news' | 'academic' | 'statistics' | 'video' | 'other' = 'other'
       
@@ -243,7 +275,8 @@ function processApiResponse(content: string): SearchResponse {
         url.includes('jstor') || 
         url.includes('springer') || 
         url.includes('.ac.') ||
-        url.includes('journal')
+        url.includes('journal') ||
+        url.includes('dbpia')
       ) {
         type = 'academic'
       } else if (
@@ -261,7 +294,8 @@ function processApiResponse(content: string): SearchResponse {
         url.includes('joins') ||
         url.includes('hani') ||
         url.includes('donga') ||
-        url.includes('khan')
+        url.includes('khan') ||
+        url.includes('jtbc')
       ) {
         type = 'news'
       } else if (
@@ -332,10 +366,23 @@ function processApiResponse(content: string): SearchResponse {
         date = dateMatchesArr[0]
       }
       
+      // URL 처리 - 불완전한 URL 보완
+      let processedUrl = url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        // 만약 //로 시작한다면 https: 추가
+        if (url.startsWith('//')) {
+          processedUrl = `https:${url}`;
+        } else {
+          processedUrl = `https://${url}`;
+        }
+      }
+      
+      console.log(`처리된 URL: ${processedUrl} (${type})`);
+      
       // 인용 정보 추가
       citations.push({
         title,
-        url,
+        url: processedUrl,
         snippet,
         type,
         date
@@ -346,6 +393,8 @@ function processApiResponse(content: string): SearchResponse {
     const uniqueCitations = citations.filter((citation, index, self) => 
       self.findIndex(c => c.url === citation.url) === index
     )
+    
+    console.log(`총 ${uniqueCitations.length}개의 인용 정보 추출 완료`);
     
     // 관련 질문 추출 (있는 경우)
     const questionsMatch = content.match(/더 탐색해 보세요:([\s\S]*?)(?:\n\n|$)/i) || 
