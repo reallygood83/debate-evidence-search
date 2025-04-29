@@ -51,9 +51,33 @@ export default function SearchResults({ results }: SearchResultsProps) {
     other: results.citations.filter(c => c.type === 'other').length
   }
   
+  // URL을 완전한 형태로 보정하는 함수
+  const getCompleteUrl = (url: string): string => {
+    if (!url) return '';
+    
+    // URL이 이미 http:// 또는 https://로 시작하는 경우
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    
+    // 도메인만 있는 경우 (예: example.com/...)
+    if (url.includes('.') && !url.startsWith('www.')) {
+      return `https://${url}`;
+    }
+    
+    // www.로 시작하는 경우
+    if (url.startsWith('www.')) {
+      return `https://${url}`;
+    }
+    
+    // 상대 경로인 경우 또는 기타 케이스
+    return `https://${url}`;
+  }
+  
   // URL 복사 함수
   const handleCopyUrl = (url: string) => {
-    navigator.clipboard.writeText(url).then(() => {
+    const completeUrl = getCompleteUrl(url);
+    navigator.clipboard.writeText(completeUrl).then(() => {
       setCopiedUrl(url);
       // 3초 후 복사 상태 초기화
       setTimeout(() => {
@@ -73,31 +97,37 @@ export default function SearchResults({ results }: SearchResultsProps) {
   
   // 유튜브 URL인지 확인
   const isYoutubeUrl = (url: string) => {
-    return url.includes('youtube.com') || url.includes('youtu.be')
+    const completeUrl = getCompleteUrl(url);
+    return completeUrl.includes('youtube.com') || completeUrl.includes('youtu.be');
   }
   
   // 유튜브 썸네일 URL 생성
   const getYoutubeThumbnail = (url: string) => {
-    let videoId = ''
+    const completeUrl = getCompleteUrl(url);
+    let videoId = '';
     
-    if (url.includes('youtube.com/watch?v=')) {
-      videoId = url.split('v=')[1]
-    } else if (url.includes('youtu.be/')) {
-      videoId = url.split('youtu.be/')[1]
+    if (completeUrl.includes('youtube.com/watch?v=')) {
+      videoId = completeUrl.split('v=')[1];
+    } else if (completeUrl.includes('youtu.be/')) {
+      videoId = completeUrl.split('youtu.be/')[1];
     }
     
     // URL 파라미터 제거
     if (videoId && videoId.includes('&')) {
-      videoId = videoId.split('&')[0]
+      videoId = videoId.split('&')[0];
     }
     
-    return videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null
+    return videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null;
   }
 
   // URL 형식 간소화 (표시용)
   const formatUrlForDisplay = (url: string) => {
     try {
-      const urlObj = new URL(url);
+      // 먼저 URL 보정
+      const completeUrl = getCompleteUrl(url);
+      
+      // 유효한 URL 객체로 변환
+      const urlObj = new URL(completeUrl);
       let displayUrl = urlObj.hostname.replace('www.', '');
       if (urlObj.pathname !== '/') {
         const pathParts = urlObj.pathname.split('/').filter(Boolean);
@@ -215,7 +245,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
                   {/* 제목 */}
                   <h3 className="font-bold text-lg mb-2 pr-16 line-clamp-2">
                     <a 
-                      href={citation.url} 
+                      href={getCompleteUrl(citation.url)} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="hover:text-primary transition-colors duration-200"
@@ -241,7 +271,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
                   <div className="flex items-center justify-between mt-3 border-t pt-3 border-gray-100">
                     <div className="flex items-center space-x-1 text-sm">
                       <a 
-                        href={citation.url} 
+                        href={getCompleteUrl(citation.url)} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="text-primary hover:text-primary-dark flex items-center mr-2 underline"
@@ -284,7 +314,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
               {citation.type === 'video' && isYoutubeUrl(citation.url) && getYoutubeThumbnail(citation.url) && (
                 <div className="mt-4">
                   <a 
-                    href={citation.url} 
+                    href={getCompleteUrl(citation.url)} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="block"
@@ -346,7 +376,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
                   <div className="flex items-center">
                     <span className="mr-2">{typeIcons[citation.type]}</span>
                     <a 
-                      href={citation.url} 
+                      href={getCompleteUrl(citation.url)} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="hover:text-primary truncate max-w-md"
