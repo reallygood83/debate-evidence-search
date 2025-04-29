@@ -1,7 +1,18 @@
 'use client'
 
-import React, { useState } from 'react'
-import { FaNewspaper, FaGraduationCap, FaChartBar, FaYoutube, FaLink, FaExternalLinkAlt } from 'react-icons/fa'
+import React, { useState, useRef } from 'react'
+import { 
+  FaNewspaper, 
+  FaGraduationCap, 
+  FaChartBar, 
+  FaYoutube, 
+  FaLink, 
+  FaExternalLinkAlt, 
+  FaCopy, 
+  FaCheck,
+  FaBookmark,
+  FaRegBookmark
+} from 'react-icons/fa'
 import { SearchResponse, Citation } from '@/app/types'
 
 interface SearchResultsProps {
@@ -10,6 +21,8 @@ interface SearchResultsProps {
 
 export default function SearchResults({ results }: SearchResultsProps) {
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+  const [bookmarkedItems, setBookmarkedItems] = useState<string[]>([])
   
   // 아이콘 매핑
   const typeIcons = {
@@ -38,6 +51,26 @@ export default function SearchResults({ results }: SearchResultsProps) {
     other: results.citations.filter(c => c.type === 'other').length
   }
   
+  // URL 복사 함수
+  const handleCopyUrl = (url: string) => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedUrl(url);
+      // 3초 후 복사 상태 초기화
+      setTimeout(() => {
+        setCopiedUrl(null);
+      }, 3000);
+    });
+  };
+
+  // 북마크 토글 함수
+  const toggleBookmark = (url: string) => {
+    if (bookmarkedItems.includes(url)) {
+      setBookmarkedItems(bookmarkedItems.filter(item => item !== url));
+    } else {
+      setBookmarkedItems([...bookmarkedItems, url]);
+    }
+  };
+  
   // 유튜브 URL인지 확인
   const isYoutubeUrl = (url: string) => {
     return url.includes('youtube.com') || url.includes('youtu.be')
@@ -54,29 +87,57 @@ export default function SearchResults({ results }: SearchResultsProps) {
     }
     
     // URL 파라미터 제거
-    if (videoId.includes('&')) {
+    if (videoId && videoId.includes('&')) {
       videoId = videoId.split('&')[0]
     }
     
     return videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null
   }
+
+  // URL 형식 간소화 (표시용)
+  const formatUrlForDisplay = (url: string) => {
+    try {
+      const urlObj = new URL(url);
+      let displayUrl = urlObj.hostname.replace('www.', '');
+      if (urlObj.pathname !== '/') {
+        const pathParts = urlObj.pathname.split('/').filter(Boolean);
+        if (pathParts.length > 0) {
+          displayUrl += `/${pathParts[0]}${pathParts.length > 1 ? '/...' : ''}`;
+        }
+      }
+      return displayUrl;
+    } catch (e) {
+      return url;
+    }
+  };
   
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-2xl font-bold mb-4">검색 결과</h2>
+      <h2 className="text-2xl font-bold mb-4 flex items-center">
+        <span className="border-b-2 border-primary pb-1">검색 결과</span>
+        <span className="ml-2 text-base font-normal text-gray-500">
+          {results.citations.length}개의 근거 자료를 찾았습니다
+        </span>
+      </h2>
       
       {/* 요약 정보 */}
-      <div className="mb-6 p-4 bg-secondary-light rounded-lg">
-        <h3 className="font-bold mb-2">AI 요약</h3>
-        <p className="text-gray-700 whitespace-pre-line">{results.summary}</p>
+      <div className="mb-6 p-5 bg-secondary-light rounded-lg border border-secondary">
+        <h3 className="font-bold mb-2 text-lg flex items-center">
+          <span className="inline-block w-1 h-5 bg-primary mr-2"></span>
+          AI 요약
+        </h3>
+        <p className="text-gray-700 whitespace-pre-line leading-relaxed">{results.summary}</p>
       </div>
       
       {/* 필터 버튼 */}
       <div className="mb-6">
-        <h3 className="font-bold mb-3">근거 자료 {results.citations.length}개</h3>
-        <div className="flex flex-wrap gap-2">
+        <h3 className="font-bold mb-3 text-lg flex items-center">
+          <span className="inline-block w-1 h-5 bg-primary mr-2"></span>
+          근거 자료 목록
+        </h3>
+        <div className="flex flex-wrap gap-2 mb-4">
           <button 
-            className={`px-3 py-1 text-sm rounded-full ${activeFilter === null ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`px-4 py-2 text-sm rounded-md transition-colors duration-200 ${activeFilter === null ? 'bg-primary text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             onClick={() => setActiveFilter(null)}
           >
             전체 ({typeCount.all})
@@ -84,7 +145,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
           
           {typeCount.news > 0 && (
             <button 
-              className={`px-3 py-1 text-sm rounded-full flex items-center ${activeFilter === 'news' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-4 py-2 text-sm rounded-md flex items-center transition-colors duration-200 ${activeFilter === 'news' ? 'bg-blue-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
               onClick={() => setActiveFilter('news')}
             >
               <FaNewspaper className="mr-1" /> 뉴스 ({typeCount.news})
@@ -93,7 +154,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
           
           {typeCount.academic > 0 && (
             <button 
-              className={`px-3 py-1 text-sm rounded-full flex items-center ${activeFilter === 'academic' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-4 py-2 text-sm rounded-md flex items-center transition-colors duration-200 ${activeFilter === 'academic' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
               onClick={() => setActiveFilter('academic')}
             >
               <FaGraduationCap className="mr-1" /> 학술 ({typeCount.academic})
@@ -102,7 +163,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
           
           {typeCount.statistics > 0 && (
             <button 
-              className={`px-3 py-1 text-sm rounded-full flex items-center ${activeFilter === 'statistics' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-4 py-2 text-sm rounded-md flex items-center transition-colors duration-200 ${activeFilter === 'statistics' ? 'bg-purple-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
               onClick={() => setActiveFilter('statistics')}
             >
               <FaChartBar className="mr-1" /> 통계 ({typeCount.statistics})
@@ -111,7 +172,7 @@ export default function SearchResults({ results }: SearchResultsProps) {
           
           {typeCount.video > 0 && (
             <button 
-              className={`px-3 py-1 text-sm rounded-full flex items-center ${activeFilter === 'video' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-4 py-2 text-sm rounded-md flex items-center transition-colors duration-200 ${activeFilter === 'video' ? 'bg-red-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
               onClick={() => setActiveFilter('video')}
             >
               <FaYoutube className="mr-1" /> 영상 ({typeCount.video})
@@ -122,47 +183,98 @@ export default function SearchResults({ results }: SearchResultsProps) {
       
       {/* 검색 결과 목록 */}
       {noResults ? (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
           {activeFilter ? `'${activeFilter}' 유형의 근거 자료를 찾을 수 없습니다.` : '근거 자료를 찾을 수 없습니다.'}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {filteredCitations.map((citation, index) => (
-            <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+            <div 
+              key={index} 
+              className="border border-gray-200 rounded-lg p-5 hover:shadow-lg transition-shadow duration-300 bg-white relative overflow-hidden"
+            >
+              {/* 자료 유형 표시 배지 */}
+              <div className={`absolute top-0 right-0 ${
+                citation.type === 'news' ? 'bg-blue-500' : 
+                citation.type === 'academic' ? 'bg-green-600' : 
+                citation.type === 'statistics' ? 'bg-purple-600' : 
+                citation.type === 'video' ? 'bg-red-600' : 
+                'bg-gray-500'
+              } text-white text-xs font-bold px-3 py-1 rounded-bl-lg`}>
+                {citation.type === 'news' ? '뉴스' : 
+                 citation.type === 'academic' ? '학술' : 
+                 citation.type === 'statistics' ? '통계' : 
+                 citation.type === 'video' ? '영상' : '기타'}
+              </div>
+              
               <div className="flex items-start">
-                <div className="mr-3 mt-1">
+                <div className="mr-4 mt-1 text-xl">
                   {typeIcons[citation.type] || typeIcons.other}
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-lg mb-1 line-clamp-2">
+                  {/* 제목 */}
+                  <h3 className="font-bold text-lg mb-2 pr-16 line-clamp-2">
                     <a 
                       href={citation.url} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="hover:text-primary"
+                      className="hover:text-primary transition-colors duration-200"
                     >
                       {citation.title}
                     </a>
                   </h3>
                   
-                  {citation.snippet && (
-                    <p className="text-gray-700 mb-3 line-clamp-3">{citation.snippet}</p>
+                  {/* 날짜 정보 */}
+                  {citation.date && (
+                    <div className="text-gray-500 text-xs mb-2 flex items-center">
+                      <span className="inline-block w-2 h-2 bg-gray-400 rounded-full mr-2"></span>
+                      {citation.date}
+                    </div>
                   )}
                   
-                  <div className="flex items-center justify-between">
-                    <div>
+                  {/* 요약 내용 */}
+                  {citation.snippet && (
+                    <p className="text-gray-700 mb-4 line-clamp-3 text-sm">{citation.snippet}</p>
+                  )}
+                  
+                  {/* URL 및 액션 버튼 */}
+                  <div className="flex items-center justify-between mt-3 border-t pt-3 border-gray-100">
+                    <div className="flex items-center space-x-1 text-sm">
                       <a 
                         href={citation.url} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="text-primary hover:text-primary-dark text-sm flex items-center"
+                        className="text-primary hover:text-primary-dark flex items-center mr-2 underline"
                       >
-                        {new URL(citation.url).hostname.replace('www.', '')}
+                        {formatUrlForDisplay(citation.url)}
                         <FaExternalLinkAlt className="ml-1 text-xs" />
                       </a>
-                      {citation.date && (
-                        <span className="text-gray-500 text-xs ml-2">{citation.date}</span>
-                      )}
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      {/* 북마크 버튼 */}
+                      <button 
+                        onClick={() => toggleBookmark(citation.url)}
+                        className="p-2 text-gray-500 hover:text-primary rounded-full hover:bg-gray-100 transition-colors"
+                        title={bookmarkedItems.includes(citation.url) ? "북마크 해제" : "북마크 추가"}
+                      >
+                        {bookmarkedItems.includes(citation.url) ? 
+                          <FaBookmark className="text-primary" /> : 
+                          <FaRegBookmark />
+                        }
+                      </button>
+                      
+                      {/* 복사 버튼 */}
+                      <button 
+                        onClick={() => handleCopyUrl(citation.url)}
+                        className="p-2 text-gray-500 hover:text-primary rounded-full hover:bg-gray-100 transition-colors"
+                        title="URL 복사"
+                      >
+                        {copiedUrl === citation.url ? 
+                          <FaCheck className="text-green-500" /> : 
+                          <FaCopy />
+                        }
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -170,21 +282,21 @@ export default function SearchResults({ results }: SearchResultsProps) {
               
               {/* 유튜브 영상 썸네일 */}
               {citation.type === 'video' && isYoutubeUrl(citation.url) && getYoutubeThumbnail(citation.url) && (
-                <div className="mt-3">
+                <div className="mt-4">
                   <a 
                     href={citation.url} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="block"
                   >
-                    <div className="relative">
+                    <div className="relative rounded-md overflow-hidden">
                       <img 
                         src={getYoutubeThumbnail(citation.url) || ''} 
                         alt={citation.title} 
-                        className="w-full h-auto rounded-md"
+                        className="w-full h-auto object-cover transition-transform duration-300 hover:scale-105"
                       />
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-red-600 text-white rounded-full p-3 opacity-90">
+                        <div className="bg-red-600 text-white rounded-full p-3 opacity-90 shadow-lg">
                           <FaYoutube className="text-xl" />
                         </div>
                       </div>
@@ -199,14 +311,59 @@ export default function SearchResults({ results }: SearchResultsProps) {
       
       {/* 관련 질문 */}
       {results.relatedQuestions && results.relatedQuestions.length > 0 && (
-        <div className="mt-8">
-          <h3 className="font-bold mb-3">더 탐색해 보세요:</h3>
-          <div className="flex flex-wrap gap-2">
+        <div className="mt-8 p-5 bg-gray-50 rounded-lg border border-gray-200">
+          <h3 className="font-bold mb-3 text-lg flex items-center">
+            <span className="inline-block w-1 h-5 bg-primary mr-2"></span>
+            더 탐색해 보세요
+          </h3>
+          <div className="flex flex-wrap gap-3">
             {results.relatedQuestions.map((question, index) => (
-              <div key={index} className="bg-secondary p-3 rounded-lg text-sm text-gray-700 hover:bg-secondary-dark cursor-pointer">
+              <div 
+                key={index} 
+                className="bg-white p-3 rounded-lg text-sm text-gray-700 hover:bg-secondary-light cursor-pointer border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200"
+              >
                 {question}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 북마크된 항목들 */}
+      {bookmarkedItems.length > 0 && (
+        <div className="mt-8 p-5 bg-blue-50 rounded-lg border border-blue-200">
+          <h3 className="font-bold mb-3 text-lg flex items-center">
+            <FaBookmark className="text-primary mr-2" />
+            북마크된 자료 ({bookmarkedItems.length}개)
+          </h3>
+          <div className="space-y-2">
+            {bookmarkedItems.map((url, index) => {
+              const citation = results.citations.find(c => c.url === url);
+              if (!citation) return null;
+              
+              return (
+                <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                  <div className="flex items-center">
+                    <span className="mr-2">{typeIcons[citation.type]}</span>
+                    <a 
+                      href={citation.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="hover:text-primary truncate max-w-md"
+                    >
+                      {citation.title}
+                    </a>
+                  </div>
+                  <button 
+                    onClick={() => toggleBookmark(url)}
+                    className="text-primary hover:text-red-500"
+                    title="북마크 해제"
+                  >
+                    <FaBookmark />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
